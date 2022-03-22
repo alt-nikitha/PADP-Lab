@@ -1,224 +1,156 @@
-//Nidhi K
 #include <math.h>
-#include <string.h>
+#include <cstring>
 #include <omp.h>
 #include <iostream>
 using namespace std;
-double t = 0.0;
+#define NUM_THREADS 2
 
-inline long Strike(bool composite[], long i, long stride, long limit)
-{
-
-  for (; i <= limit; i += stride)
-    composite[i] = true;
-  return i;
+long striker(bool *composite, long start, long stride, long end){
+    for(;start<=end; start+=stride){
+        composite[start] = true;
+    }
+    return start;
 }
 
-long CacheUnfriendlySieve(long n)
-{
 
-  long count = 0;
-  long m = (long)sqrt((double)n);
-  bool *composite = new bool[n + 1];
-
-  memset(composite, 0, n);
-
-  t = omp_get_wtime();
-
-  for (long i = 2; i <= m; ++i)
-
-    if (!composite[i])
-    {
-
-      ++count;
-      // Strike walks array ofsize n here.
-
-      Strike(composite, 2 * i, i, n);
-    }
-
-  for (long i = m + 1; i <= n; ++i)
-    if (!composite[i])
-    {
-      ++count;
-    }
-  t = omp_get_wtime() - t;
-
-  delete[] composite;
-
-  return count;
-}
-
-long CacheFriendlySieve(long n)
-
-{
-
-  long count = 0;
-
-  long m = (long)sqrt((double)n);
-
-  bool *composite = new bool[n + 1];
-
-  memset(composite, 0, n);
-
-  long *factor = new long[m];
-
-  long *striker = new long[m];
-
-  long n_factor = 0;
-
-  t = omp_get_wtime();
-
-  for (long i = 2; i <= m; ++i)
-
-    if (!composite[i])
-
-    {
-
-      ++count;
-
-      striker[n_factor] = Strike(composite, 2 * i, i, m);
-
-      factor[n_factor++] = i;
-    }
-
-  // Chops sieve into windows of size ≈ sqrt(n)
-
-  for (long window = m + 1; window <= n; window += m)
-
-  {
-
-    long limit = min(window + m - 1, n);
-
-    for (long k = 0; k < n_factor; ++k)
-
-      // Strike walks window of size sqrt(n) here.
-
-      striker[k] = Strike(composite, striker[k], factor[k], limit);
-
-    for (long i = window; i <= limit; ++i)
-
-      if (!composite[i])
-
-        ++count;
-  }
-
-  t = omp_get_wtime() - t;
-
-  delete[] striker;
-
-  delete[] factor;
-
-  delete[] composite;
-
-  return count;
-}
-
-long ParallelSieve(long n)
-
-{
-  long count = 0;
-
-  long m = (long)sqrt((double)n);
-
-  long n_factor = 0;
-
-  long *factor = new long[m];
-
-  t = omp_get_wtime();
-#pragma omp parallel
-  {
-
-    bool *composite = new bool[m + 1];
-
-    long *striker = new long[m];
-
-#pragma omp single
-
-    {
-
-      memset(composite, 0, m);
-
-      for (long i = 2; i <= m; ++i)
-
-        if (!composite[i])
-
-        {
-          ++count;
-          Strike(composite, 2 * i, i, m);
-          factor[n_factor++] = i;
+long cacheunfriendly(long n){
+    long count = 0;
+    long m = (long)sqrt((double)n);
+    bool *composite = new bool[n+1];
+    double t = omp_get_wtime();
+    memset(composite,0,n);
+    for(long i = 2;i<=m;i++){
+        if(!composite[i]){
+            count++;
+            striker(composite,2*i, i, n);
         }
     }
 
-    long base = -1;
 
-#pragma omp for reduction(+ \
-                          : count)
-
-    for (long window = m + 1; window <= n; window += m)
-
-    {
-
-      memset(composite, 0, m);
-
-      if (base != window)
-
-      {
-
-        // Must compute striker from scratch.
-
-        base = window;
-
-        for (long k = 0; k < n_factor; ++k)
-
-          striker[k] = (base + factor[k] - 1) / factor[k] * factor[k] - base;
-      }
-      long limit = min(window + m - 1, n) - base;
-
-      for (long k = 0; k < n_factor; ++k)
-
-        striker[k] = Strike(composite, striker[k], factor[k], limit) - m;
-
-      for (long i = 0; i <= limit; ++i)
-
-        if (!composite[i])
-
-          ++count;
-
-      base += m;
+    for(int i = m+1; i<=n;i++){
+        if(!composite[i]){
+            count++;
+        }
     }
-
-    delete[] striker;
-
-    delete[] composite;
-  }
-
-  t = omp_get_wtime() - t;
-
-  delete[] factor;
-
-  return count;
+    printf("time taken: %f\n", omp_get_wtime()-t);
+    return count;
 }
 
-int main()
+long cachefriendly(long n){
+    long count = 0;
+    long m = (long)sqrt((double)n);
+    bool *composite = new bool[n+1];
+    long *factor = new long[m+1];
+    long *strike = new long[m+1];
+    long n_factor = 0;
+    double t = omp_get_wtime();
+    memset(composite,0,n);
+    for(long i = 2;i<=m;i++){
+        if(!composite[i]){
+            count++;
+            strike[n_factor] = striker(composite,2*i, i, m);
+            factor[n_factor++] = i;
+        }
+    }
 
-{
-  int i;
-  long a[] = {100, 100000000, 1000000000};
-  for (i = 0; i < 3; i++)
-  {
-    cout << "Input Size: " << a[i] << endl;
-    long count1 = CacheUnfriendlySieve(a[i]);
-    cout << "Unfriendly " << count1 << endl;
-    cout << "Time : " << t << endl;
-    cout << endl;
-    long count2 = CacheFriendlySieve(a[i]);
-    cout << "Friendly " << count2 << endl;
-    cout << "Time : " << t << endl;
-    cout << endl;
-    long count3 = ParallelSieve(a[i]);
-    cout << "Parallel " << count3 << endl;
-    cout << "Time : " << t << endl;
-    cout << endl;
-    cout << endl;
-  }
+    for(long window = m+1; window<=n; window+=m){
+        long limit = min(window+m-1,n);
+        for(int k = 0; k<n_factor;k++){
+            strike[k] = striker(composite, strike[k], factor[k], limit);
+        }
+
+        for(int i = window; i<=limit;i++){
+            if(!composite[i]) count++;
+        }
+    }
+    printf("time taken: %f\n", omp_get_wtime()-t);
+    return count;
+}
+
+long parallel_sieve(long n){
+    long count = 0;
+    long m = (long)sqrt((double)n);
+    long *factor = new long[n];
+    long n_factor = 0;
+    double t = omp_get_wtime();
+    omp_set_num_threads(2);
+    #pragma omp parallel
+    {
+        bool *composite = new bool[m+1];
+        long *strike = new long[m];
+
+        #pragma omp single
+        {
+            memset(composite,0,m);
+            for(long i = 2;i<=m;i++){
+                if(!composite[i]){
+                    ++count;
+                    striker(composite,2*i, i, m);
+                    factor[n_factor++] = i;
+                }
+            }
+        }
+
+        long base = -1;
+        #pragma omp for reduction(+:count)
+        for(long window=m+1;window<=n;window+=m){
+            memset(composite,0,m);
+            if(base!=window){
+                base = window;
+                for(long k = 0;k<n_factor;k++){
+                    strike[k] = (base+factor[k]-1)/factor[k]*factor[k]-base;
+                }
+            }
+           
+            long limit = min(window+m-1, n) - base;
+            for(long k = 0;k<n_factor;k++){
+                strike[k] = striker(composite,strike[k], factor[k], limit) - m;
+            }
+
+            for(int i = 0; i<=limit;i++){
+                if(!composite[i]) ++count;
+            }
+
+            
+
+
+
+            base+=m;
+        }
+
+        
+
+
+    }
+    printf("time taken: %f\n", omp_get_wtime()-t);
+    return count;
+
+    
+
+}
+
+
+
+
+
+int main(){
+
+    long count;
+    for(long n=10; n<=1000000; n*=10){
+        cout <<"Limit :"<<n<<"\n";
+        count = cacheunfriendly(n);
+        cout<< "Num primes: "<<count<<"\n";
+        
+
+        count = cachefriendly(n);
+        cout<< "Num primes: "<<count<<"\n";
+        
+
+        count = parallel_sieve(n);
+        cout<< "Num primes: "<<count<<"\n";
+        
+    }
+
+    return 0;
+
 }

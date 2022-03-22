@@ -1,6 +1,7 @@
 #include<math.h>
 #include<iostream>
 #include<omp.h>
+#include <cstring>
 using namespace std;
 long Striker(bool *composite, long i, long stride, long limit){
     for(;i<=limit;i+=stride){
@@ -119,8 +120,11 @@ long parallel_sieve(long n){
             for (long window=m+1;window<=n;window+=m){
                 memset(composite,0,m);
                 if(base!=window){
+                    
                     base = window;
+                    cout<< "Base"<<base<<"window"<<m<<"\n";
                     for(long k=0;k<n_factor;++k){
+                        cout<< (base+factor[k]-1)/factor[k]*factor[k] - base<<"\n";
                         striker[k] = (base+factor[k]-1)/factor[k]*factor[k] - base;
                     }
                     
@@ -144,12 +148,12 @@ int main(int argc, char **argv){
     cin>> n;
     int count = parallel_sieve(n);
     cout<<count<<endl;
-    count = friendly(n);
-    cout<<count<<endl;
-    count = unfriendly(n);
-    cout<<count<<endl;
-    count = friendly_parallel(n);
-    cout<<count<<endl;
+    // count = friendly(n);
+    // cout<<count<<endl;
+    // count = unfriendly(n);
+    // cout<<count<<endl;
+    // count = friendly_parallel(n);
+    // cout<<count<<endl;
 
 
     return 0;
